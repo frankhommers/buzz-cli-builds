@@ -1,0 +1,6 @@
+# Send no checkout metadata, tokens, native build work or user configuration.
+**
+!Dockerfile
+!upstream.json
+!scripts/
+!scripts/build.py
