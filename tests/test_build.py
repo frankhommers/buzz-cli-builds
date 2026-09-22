@@ -1,5 +1,6 @@
 """Offline contract tests; fixtures are never represented as upstream test runs."""
 import json
+import os
 from pathlib import Path
 import struct
 import sys
@@ -248,6 +249,8 @@ class PackageTests(unittest.TestCase):
                 exe = "buzz.exe" if target.endswith("windows-msvc") else "buzz"
                 (stage / exe).write_bytes(b"offline fixture, not a production binary\n")
                 (stage / "LICENSE").write_text("test fixture license")
+                # Cargo crate archives can preserve Unix-epoch notice dates.
+                os.utime(stage / "LICENSE", (1, 1))
                 (stage / "logs").mkdir()
                 (stage / "logs" / "unit-tests.log").write_text("fixture")
                 (stage / "licenses").mkdir()

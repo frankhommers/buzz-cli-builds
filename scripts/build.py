@@ -636,7 +636,7 @@ def package_artifact(stage, output, pin, target, metadata):
     temporary = stage.parent / (archive_name + ".partial")
     try:
         if archive_name.endswith(".zip"):
-            with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+            with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED, compresslevel=9, strict_timestamps=False) as archive:
                 for path in sorted(stage.rglob("*")):
                     if path.is_file():
                         archive.write(path, base + "/" + path.relative_to(stage).as_posix())
