@@ -163,6 +163,7 @@ class VerificationTests(unittest.TestCase):
         actual = build.inspect_pe(bytes(pe_with_dependency("KERNEL32.dll")))
         self.assertEqual(actual["dependencies"], ["KERNEL32.dll"])
         self.assertTrue(actual["static_crt"])
+        self.assertEqual(build.inspect_pe(bytes(pe_with_dependency("combase.dll")))["dependencies"], ["combase.dll"])
         for name in ("VCRUNTIME140.dll", "ucrtbase.dll", "api-ms-win-crt-stdio-l1-1-0.dll", "unshipped.dll"):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 build.inspect_pe(bytes(pe_with_dependency(name)))
@@ -182,6 +183,19 @@ class VerificationTests(unittest.TestCase):
             self.assertIn("first", text)
             self.assertIn("failure evidence", text)
             self.assertIn("[exit_code=7]", text)
+
+    def test_license_supplement_hashes_and_paths(self):
+        manifest = build.load_license_supplements(ROOT / "license-supplements", "1.95.0")
+        self.assertIn("nostr-0.44.7", manifest["crate_overrides"])
+        with self.assertRaises(ValueError):
+            build.load_license_supplements(ROOT / "license-supplements", "1.96.0")
+        with tempfile.TemporaryDirectory() as d:
+            import shutil
+            folder = Path(d) / "supplements"
+            shutil.copytree(ROOT / "license-supplements", folder)
+            (folder / "nostr-0.44.7-LICENSE").write_text("tampered")
+            with self.assertRaises(ValueError):
+                build.load_license_supplements(folder, "1.95.0")
 
     def test_actual_registry_license_files_and_missing_report(self):
         with tempfile.TemporaryDirectory() as d:

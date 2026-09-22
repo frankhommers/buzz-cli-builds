@@ -8,6 +8,7 @@ RUN apk add --no-cache python3 build-base cmake perl pkgconf git ca-certificates
 WORKDIR /recipe
 COPY upstream.json ./upstream.json
 COPY scripts/build.py ./scripts/build.py
+COPY license-supplements/ ./license-supplements/
 # Resolve/compile only buzz-cli, preserving the complete upstream Cargo.lock.
 RUN python3 scripts/build.py --target "${BUZZ_TARGET}" --container-phase prepare
 # The real library suite runs after preparation with the container network off.

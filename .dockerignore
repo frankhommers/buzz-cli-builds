@@ -4,3 +4,5 @@
 !upstream.json
 !scripts/
 !scripts/build.py
+!license-supplements/
+!license-supplements/**

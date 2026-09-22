@@ -258,7 +258,7 @@ def inspect_pe(data):
     if directories > 13:
         require(struct.unpack_from("<I", data, optional + 112 + 13 * 8)[0] == 0,
                 "Delay-loaded DLLs require explicit review")
-    system_dlls = {"advapi32.dll", "bcrypt.dll", "bcryptprimitives.dll", "cfgmgr32.dll", "comctl32.dll",
+    system_dlls = {"advapi32.dll", "bcrypt.dll", "bcryptprimitives.dll", "cfgmgr32.dll", "comctl32.dll", "combase.dll",
                    "crypt32.dll", "cryptbase.dll", "dbghelp.dll", "dnsapi.dll", "gdi32.dll", "iphlpapi.dll",
                    "kernel32.dll", "kernelbase.dll", "ncrypt.dll", "netapi32.dll", "normaliz.dll", "ntdll.dll",
                    "ole32.dll", "oleaut32.dll", "powrprof.dll", "propsys.dll", "psapi.dll", "rpcrt4.dll",
@@ -384,6 +384,19 @@ def cargo_command(target, operation):
     return ["cargo", operation, "--locked", "--release", "-p", "buzz-cli", "--target", target]
 
 
+def load_license_supplements(directory, rust_version):
+    directory = Path(directory)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"), object_pairs_hook=unique_object)
+    require(manifest["rust_version"] == rust_version, "Runtime license inventory needs review for this Rust version")
+    for name, entry in manifest["files"].items():
+        require(re.fullmatch(r"[A-Za-z0-9._-]+", name) and name not in (".", ".."), "Unsafe license supplement name")
+        path = directory / name
+        require(path.is_file() and not path.is_symlink() and sha256(path) == entry["sha256"], "License supplement integrity failure")
+    for names in list(manifest["crate_overrides"].values()) + [manifest["runtime_files"]]:
+        require(names and all(name in manifest["files"] for name in names), "Unknown license supplement reference")
+    return manifest
+
+
 def collect_licenses(logs, source, destination):
     """Use compiler-artifact manifests, not workspace cargo metadata or a guessed list."""
     manifests = set()
@@ -397,6 +410,9 @@ def collect_licenses(logs, source, destination):
     require(manifests, "Cargo emitted no compiled dependency manifests")
     destination.mkdir(parents=True, exist_ok=True)
     inventory, missing = [], []
+    supplements = ROOT / "license-supplements"
+    supplement_manifest = load_license_supplements(supplements, load_pin(ROOT / "upstream.json")["rust"])
+    shutil.copytree(supplements, destination / "supplemental-sources")
     for manifest in sorted(manifests):
         meta = tomllib.loads(manifest.read_text(encoding="utf-8"))
         pkg = meta["package"]
@@ -425,14 +441,20 @@ def collect_licenses(logs, source, destination):
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, dest)
                 files.append(relative.as_posix())
-        entry = {"name": name, "version": version, "license": pkg.get("license"),
+        supplemental = []
+        if not files:
+            for filename in supplement_manifest["crate_overrides"].get(key, []):
+                shutil.copy2(supplements / filename, out / filename)
+                files.append(filename)
+                supplemental.append(supplement_manifest["files"][filename])
+        entry = {"supplemental_sources": supplemental, "name": name, "version": version, "license": pkg.get("license"),
                  "repository": pkg.get("repository"), "files": files, "manifest_sha256": sha256(manifest)}
         inventory.append(entry)
         if not files:
             missing.append(key)
     limitation = ("Conservative compiled-dependency superset including library-test/build dependencies. "
-                  "Actual files shipped by Cargo sources are copied; declarations are not substituted for missing texts. "
-                  "Rust standard-library, compiler runtime and operating-system SDK licenses are not exhaustively inventoried. "
+                  "Cargo license files are copied; missing texts use hash-verified, version-scoped upstream supplements. "
+                  "Rust/LLVM/musl notices are included conservatively; operating-system SDK terms still apply. "
                   "This inventory is not a legal compliance certification.")
     report = {"scope": limitation, "dependencies": inventory, "missing_license_files": missing}
     write_json(destination / "index.json", report)
@@ -478,6 +500,7 @@ def build_binary(work, pin, target, artifact):
     shutil.copy2(source / "Cargo.lock", artifact / "Cargo.lock")
     inspection = verify_binary(artifact / exe, target, logs, env)
     licenses = collect_licenses(logs, source, artifact / "licenses")
+    require(not licenses["missing_license_files"], "Compiled dependencies need license text before distribution")
     shutil.copytree(logs, artifact / "logs")
     result = {**prepared, **inspection, "dependency_licenses": licenses,
               "unit_tests": json.loads((work / "unit-tests.json").read_text(encoding="utf-8")),
@@ -667,6 +690,8 @@ def main(argv=None):
     require(output != ROOT / "dist" and output.is_relative_to(ROOT / "dist"), "Output must be a target directory beneath root/dist")
     require(not output.exists() or not any(output.iterdir()), "Output directory must be empty")
     # A receipt cannot invent a recipe identity for an uncommitted new repository.
+    require(not run(["git", "status", "--porcelain", "--untracked-files=normal"],
+                    cwd=ROOT, env=clean_env()).stdout.strip(), "Commit the recipe changes before building")
     recipe = run(["git", "rev-parse", "HEAD"], cwd=ROOT, env=clean_env()).stdout.strip()
     require(re.fullmatch(r"[0-9a-f]{40}", recipe), "No valid recipe git HEAD")
     work_root = ROOT / "work"

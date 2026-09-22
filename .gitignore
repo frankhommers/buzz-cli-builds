@@ -1,6 +1,7 @@
 /dist/
 /work/
 /verification/
+/diagnostics/
 __pycache__/
 *.pyc
 .DS_Store

@@ -1,0 +1,56 @@
+{
+  "rust_version": "1.95.0",
+  "files": {
+    "nostr-0.44.7-LICENSE": {
+      "sha256": "a333d394b9f31b6ca64d08f3048a8a38125c181d68d3d376c4ddf988cffd12d2",
+      "source": "https://github.com/rust-nostr/nostr/blob/94dac28e9a718d853170308aeb551b1ebf89a0d0/LICENSE"
+    },
+    "bitcoin-CC0-LICENSE": {
+      "sha256": "7179683e8000e6bdc9bbc60d85edf0a4ac8e76f951857f54fcb775d5886f1309",
+      "source": "https://github.com/rust-bitcoin/rust-bitcoin/blob/76690fc2a3b2f092ec2151e51adc4d91b91fc760/LICENSE"
+    },
+    "rust-COPYRIGHT": {
+      "sha256": "172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af",
+      "source": "https://github.com/rust-lang/rust/blob/59807616e1fa2540724bfbac14d7976d7e4a3860/COPYRIGHT"
+    },
+    "rust-LICENSE-MIT": {
+      "sha256": "b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1",
+      "source": "https://github.com/rust-lang/rust/blob/59807616e1fa2540724bfbac14d7976d7e4a3860/LICENSE-MIT"
+    },
+    "rust-LICENSE-APACHE": {
+      "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a",
+      "source": "https://github.com/rust-lang/rust/blob/59807616e1fa2540724bfbac14d7976d7e4a3860/LICENSE-APACHE"
+    },
+    "llvm-LICENSE.TXT": {
+      "sha256": "8d85c1057d742e597985c7d4e6320b015a9139385cff4cbae06ffc0ebe89afee",
+      "source": "https://github.com/rust-lang/llvm-project/blob/1cb4e3833c1919c2e6fb579a23ac0e2b22587b7e/llvm/LICENSE.TXT"
+    },
+    "musl-COPYRIGHT": {
+      "sha256": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
+      "source": "https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5"
+    }
+  },
+  "crate_overrides": {
+    "nostr-0.44.7": [
+      "nostr-0.44.7-LICENSE"
+    ],
+    "bitcoin_hashes-0.14.1": [
+      "bitcoin-CC0-LICENSE"
+    ],
+    "bitcoin-io-0.1.4": [
+      "bitcoin-CC0-LICENSE"
+    ]
+  },
+  "runtime_files": [
+    "rust-COPYRIGHT",
+    "rust-LICENSE-MIT",
+    "rust-LICENSE-APACHE",
+    "llvm-LICENSE.TXT",
+    "musl-COPYRIGHT"
+  ],
+  "notes": [
+    "Nostr and bitcoin_hashes references follow the exact published crates cargo_vcs_info commit.",
+    "bitcoin-io 0.1.4 ships no cargo_vcs_info or license text; its manifest declares CC0-1.0. The canonical CC0 text is provided from the pinned rust-bitcoin repository.",
+    "Runtime notices are supplied conservatively; OS SDK and Microsoft runtime redistribution terms still apply."
+  ]
+}
