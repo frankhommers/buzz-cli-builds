@@ -65,8 +65,8 @@ Checksums detect corruption; they do not provide an independent publisher signat
 
 ## Source and version policy
 
-[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream `desktop-v0.5.25`.
-Our release version `0.5.25-1` means upstream release 0.5.25, packaging revision 1. It is not the upstream Cargo package's version string.
+[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream `desktop-v0.5.28`.
+Our release version `0.5.28-1` means upstream release 0.5.28, packaging revision 1. It is not the upstream Cargo package's version string.
 
 The workflow runs on pushes to `main`, pull requests and **Run workflow** in GitHub Actions.
 **There is currently no periodic upstream watcher and no automatic release publication.** Those are deliberately deferred until the basic cross-platform build is established.
