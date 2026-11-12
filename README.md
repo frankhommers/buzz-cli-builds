@@ -20,6 +20,7 @@ Get the archive for your operating system from [Releases](https://github.com/fra
 
 Each published version must pass native builds, CLI library tests and smoke tests on **all five targets**.
 Linux executables use musl and must have no ELF interpreter or shared-library dependencies.
+The Linux build and library suite run as an unprivileged user, so filesystem permission tests exercise real access checks.
 macOS and Windows executables are built and tested on their native GitHub-hosted runners, not cross-compiled inside Linux containers.
 
 Extract the archive and run `./buzz --help` (Linux/macOS) or `.\buzz.exe --help` (PowerShell).

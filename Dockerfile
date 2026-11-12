@@ -5,10 +5,13 @@ FROM ${RUST_IMAGE} AS builder
 ARG BUZZ_TARGET
 ENV BUILD_CONTAINER=1
 RUN apk add --no-cache python3 build-base cmake perl pkgconf git ca-certificates file binutils
+RUN adduser -D -u 1000 builder && mkdir -p /recipe && chown builder:builder /recipe /usr/local/cargo
+ENV HOME=/home/builder
 WORKDIR /recipe
 COPY upstream.json ./upstream.json
 COPY scripts/build.py ./scripts/build.py
 COPY license-supplements/ ./license-supplements/
+USER builder
 # Resolve/compile only buzz-cli, preserving the complete upstream Cargo.lock.
 RUN python3 scripts/build.py --target "${BUZZ_TARGET}" --container-phase prepare
 # The real library suite runs after preparation with the container network off.
