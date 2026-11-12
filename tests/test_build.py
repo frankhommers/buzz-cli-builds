@@ -62,6 +62,11 @@ class PinTests(unittest.TestCase):
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 build.validate_pin(dict(PIN, **{key: value}))
 
+    def test_arm_musl_c_dependencies_use_inline_atomics(self):
+        with tempfile.TemporaryDirectory() as d:
+            env = build.build_env(Path(d), PIN, "aarch64-unknown-linux-musl")
+            self.assertEqual(env["CFLAGS_aarch64_unknown_linux_musl"], "-mno-outline-atomics")
+
     def test_duplicate_json_keys_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "pin.json"

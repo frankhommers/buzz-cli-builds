@@ -338,6 +338,10 @@ def build_env(work, pin, target):
                LOCALAPPDATA=str(home / "AppData/Local"),
                RUSTUP_TOOLCHAIN=pin["rust"], CARGO_TARGET_DIR=str(work / "cargo-target"),
                CARGO_PROFILE_RELEASE_STRIP="symbols")
+    if target == "aarch64-unknown-linux-musl":
+        # GCC's outlined legacy __sync atomics need libgcc helpers absent from
+        # Rust's static musl link. Emit baseline ARMv8 LL/SC in C dependencies.
+        env["CFLAGS_aarch64_unknown_linux_musl"] = "-mno-outline-atomics"
     if target.endswith("apple-darwin"):
         env["MACOSX_DEPLOYMENT_TARGET"] = "11.0"
     if target.endswith("windows-msvc"):
