@@ -40,6 +40,9 @@ def require(condition, message):
         raise ValueError(message)
 
 
+VERSION_PATTERN = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-dev\.[0-9]{8}\.[0-9a-f]{12})?-[1-9][0-9]*"
+
+
 def validate_pin(pin):
     keys = {"repository", "tag", "commit", "rust", "rust_image", "version"}
     require(type(pin) is dict and set(pin) == keys, "Pin must have exactly: " + ", ".join(sorted(keys)))
@@ -48,8 +51,13 @@ def validate_pin(pin):
     require(re.fullmatch(r"[0-9a-f]{40}", pin["commit"]), "Commit must be a lowercase full SHA-1")
     semver = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
     require(re.fullmatch(semver, pin["rust"]), "Rust must be an exact stable version")
-    require(re.fullmatch(semver + r"-[1-9][0-9]*", pin["version"]), "Unsafe release version")
-    require(pin["tag"] == "desktop-v" + pin["version"].rsplit("-", 1)[0], "Tag/version mismatch")
+    require(re.fullmatch(VERSION_PATTERN, pin["version"]), "Unsafe release version")
+    if "-dev." in pin["version"]:
+        date, short = pin["version"].split("-dev.", 1)[1].rsplit("-", 1)[0].split(".")
+        require(short == pin["commit"][:12] and pin["tag"] == f"snapshot-{date}-{short}",
+                "Snapshot label/version/commit mismatch")
+    else:
+        require(pin["tag"] == "desktop-v" + pin["version"].rsplit("-", 1)[0], "Tag/version mismatch")
     require(re.fullmatch(r"rust:" + re.escape(pin["rust"]) + r"-alpine@sha256:[0-9a-f]{64}",
                          pin["rust_image"]), "Rust image must be the matching official Alpine tag plus digest")
     return pin
@@ -364,10 +372,11 @@ def fetch_source(source, pin, env, log):
     run(git + ["checkout", "--detach", "FETCH_HEAD"], cwd=source, env=env, log=log)
     head = run(git + ["rev-parse", "HEAD"], cwd=source, env=env, log=log).stdout.strip()
     require(head == pin["commit"], "Fetched source commit differs from pin")
-    run(git + ["fetch", "--depth=1", "--no-tags", "origin", f'refs/tags/{pin["tag"]}:refs/tags/{pin["tag"]}'],
-        cwd=source, env=env, log=log)
-    tag = run(git + ["rev-parse", f'refs/tags/{pin["tag"]}^{{commit}}'], cwd=source, env=env, log=log).stdout.strip()
-    require(tag == pin["commit"], "Source tag does not peel to the pinned commit")
+    if not pin["tag"].startswith("snapshot-"):
+        run(git + ["fetch", "--depth=1", "--no-tags", "origin", f'refs/tags/{pin["tag"]}:refs/tags/{pin["tag"]}'],
+            cwd=source, env=env, log=log)
+        tag = run(git + ["rev-parse", f'refs/tags/{pin["tag"]}^{{commit}}'], cwd=source, env=env, log=log).stdout.strip()
+        require(tag == pin["commit"], "Source tag does not peel to the pinned commit")
     toolchain = tomllib.loads((source / "rust-toolchain.toml").read_text(encoding="utf-8"))
     require(toolchain.get("toolchain", {}).get("channel") == pin["rust"], "Upstream Rust toolchain pin mismatch")
     require((source / "LICENSE").is_file() and (source / "Cargo.lock").is_file(), "Missing upstream license/lockfile")

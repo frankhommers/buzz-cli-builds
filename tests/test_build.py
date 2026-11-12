@@ -26,6 +26,16 @@ class PinTests(unittest.TestCase):
     def test_valid_pin(self):
         self.assertEqual(build.validate_pin(dict(PIN)), PIN)
 
+    def test_snapshot_pin_binds_label_version_and_commit(self):
+        pin = dict(PIN, tag="snapshot-20261112-" + PIN["commit"][:12],
+                   version="0.5.23-dev.20261112." + PIN["commit"][:12] + "-1")
+        self.assertEqual(build.validate_pin(pin), pin)
+        for change in ({"commit": "a" * 40}, {"tag": "main"},
+                       {"tag": "snapshot-20261111-" + PIN["commit"][:12]},
+                       {"version": "0.5.23-1"}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                build.validate_pin(dict(pin, **change))
+
     def test_missing_unknown_and_wrong_types(self):
         for key in PIN:
             for value in (None, True, 7, [], {}):
@@ -186,7 +196,7 @@ class VerificationTests(unittest.TestCase):
             self.assertIn("[exit_code=7]", text)
 
     def test_license_supplement_hashes_and_paths(self):
-        manifest = build.load_license_supplements(ROOT / "license-supplements", "1.95.0")
+        manifest = build.load_license_supplements(ROOT / "license-supplements", build.load_pin(ROOT / "upstream.json")["rust"])
         self.assertIn("nostr-0.44.7", manifest["crate_overrides"])
         with self.assertRaises(ValueError):
             build.load_license_supplements(ROOT / "license-supplements", "1.96.0")
@@ -196,7 +206,7 @@ class VerificationTests(unittest.TestCase):
             shutil.copytree(ROOT / "license-supplements", folder)
             (folder / "nostr-0.44.7-LICENSE").write_text("tampered")
             with self.assertRaises(ValueError):
-                build.load_license_supplements(folder, "1.95.0")
+                build.load_license_supplements(folder, build.load_pin(ROOT / "upstream.json")["rust"])
 
     def test_actual_registry_license_files_and_missing_report(self):
         with tempfile.TemporaryDirectory() as d:

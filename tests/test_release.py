@@ -60,6 +60,14 @@ class ReleaseTests(unittest.TestCase):
     def validate(self):
         return release.validate_inputs(self.root, self.pin, self.recipe)
 
+    def test_snapshot_archive_name(self):
+        version = "0.5.28-dev.20261112.0e6037c74d67-1"
+        self.assertEqual(release.archive_name(version, "x86_64-unknown-linux-musl"),
+                         "buzz-cli-" + version + "-x86_64-unknown-linux-musl.tar.gz")
+        for bad in (version + "/../x", version + "\n", "latest", "0.5.28-dev.20261112.bad-1"):
+            with self.assertRaises(ValueError):
+                release.archive_name(bad, "x86_64-unknown-linux-musl")
+
     def test_complete_matrix_accepted(self):
         rows = self.validate()
         self.assertEqual(set(rows), set(release.TARGETS))

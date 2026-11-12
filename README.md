@@ -65,8 +65,8 @@ Checksums detect corruption; they do not provide an independent publisher signat
 
 ## Source and version policy
 
-[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream `desktop-v0.5.28`.
-Our release version `0.5.28-1` means upstream release 0.5.28, packaging revision 1. It is not the upstream Cargo package's version string.
+[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream commit `0e6037c74d67930de36143ed4661f469039d8dc7` from 12 November 2026.
+Snapshot `0.5.28-dev.20261112.0e6037c74d67-1` identifies the date, source commit and packaging revision; it is not an upstream Desktop release. Snapshot labels are local provenance labels, not upstream Git tags. The full immutable commit is fetched and verified. Stable pins retain tag-to-commit verification and use versions such as `0.5.28-1`. Neither is the upstream Cargo package's version string.
 
 The workflow runs on pushes to `main`, pull requests and **Run workflow** in GitHub Actions.
 **There is currently no periodic upstream watcher and no automatic release publication.** Those are deliberately deferred until the basic cross-platform build is established.

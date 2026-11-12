@@ -1,6 +1,6 @@
 # RUST_IMAGE is supplied from the validated, digest-pinned upstream.json.
 # No --platform override here: the caller validates the native Docker daemon.
-ARG RUST_IMAGE=rust:1.95.0-alpine@sha256:606fd313a0f49743ee2a7bd49a0914bab7deedb12791f3a846a34a4711db7ed2
+ARG RUST_IMAGE=rust:1.98.1-alpine@sha256:7cc1c22d77d9432f7fe012a70e6d3e555af54c2a6832700ed7d553f1769ae89f
 FROM ${RUST_IMAGE} AS builder
 ARG BUZZ_TARGET
 ENV BUILD_CONTAINER=1

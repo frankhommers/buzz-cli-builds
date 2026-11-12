@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Validate a complete native build matrix and assemble a release. Never publishes."""
+import build
 import argparse
 import hashlib
 import json
@@ -46,7 +47,7 @@ def load_json(data):
 
 
 def archive_name(version, target):
-    require(isinstance(version, str) and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+-[1-9][0-9]*", version), "Invalid version")
+    require(isinstance(version, str) and re.fullmatch(build.VERSION_PATTERN, version), "Invalid version")
     require(target in TARGETS, "Unknown target")
     return f"buzz-cli-{version}-{target}" + (".zip" if "windows" in target else ".tar.gz")
 
