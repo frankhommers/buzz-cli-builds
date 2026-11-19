@@ -67,8 +67,8 @@ Checksums detect corruption; they do not provide an independent publisher signat
 
 ## Source and version policy
 
-[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream commit `630922a9e1f891380a61f5b7d726d05ca948cc64` from 13 November 2026 (UTC), the `buzz` CLI revision bundled with Buzz Desktop 1.0.5 (`block/buzz-app` tag `desktop-v1.0.5`).
-Snapshot `0.5.28-dev.20261113.630922a9e1f8-1` identifies the date, source commit and packaging revision; it is not an upstream Desktop release. Snapshot labels are local provenance labels, not upstream Git tags. The full immutable commit is fetched and verified. Stable pins retain tag-to-commit verification and use versions such as `0.5.28-1`. Neither is the upstream Cargo package's version string.
+[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream commit `b68c4edda5d7d116171224704bb48ca13deb9fbc` from 19 November 2026 (UTC), newer than the `buzz` CLI bundled with Buzz Desktop 1.0.5 and 1.0.6 (`630922a9e1f8`). It includes the breaking `channels list/get/search` output change from upstream #9617.
+Snapshot `0.5.28-dev.20261119.b68c4edda5d7-1` identifies the date, source commit and packaging revision; it is not an upstream Desktop release. Snapshot labels are local provenance labels, not upstream Git tags. The full immutable commit is fetched and verified. Stable pins retain tag-to-commit verification and use versions such as `0.5.28-1`. Neither is the upstream Cargo package's version string.
 
 The workflow runs on pushes to `main`, pull requests and **Run workflow** in GitHub Actions.
 **There is currently no periodic upstream watcher and no automatic release publication.** Those are deliberately deferred until the basic cross-platform build is established.
