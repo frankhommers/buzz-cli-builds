@@ -1,0 +1,140 @@
+name: Release Buzz CLI
+
+# main: build every target and publish each one as soon as it passes. The release starts as a
+# public pre-release and becomes final (and Latest, for Desktop versions) only after the complete
+# matrix is verified. A version whose release is already final is built but not published again.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: buzz-cli-release
+  cancel-in-progress: false
+
+jobs:
+  recipe-tests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test release and build safeguards
+        run: python3 -m unittest discover -s tests -v
+
+  prepare:
+    name: Create or resume the release
+    needs: recipe-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECIPE_COMMIT: ${{ github.sha }}
+        run: python3 scripts/publish.py prepare --repo "$GITHUB_REPOSITORY" --recipe-commit "$RECIPE_COMMIT"
+
+  linux-x64:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/target.yml
+    with:
+      target: x86_64-unknown-linux-musl
+      runner: ubuntu-24.04
+      publish: ${{ needs.prepare.outputs.publish == 'true' }}
+  linux-arm64:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/target.yml
+    with:
+      target: aarch64-unknown-linux-musl
+      runner: ubuntu-24.04-arm
+      publish: ${{ needs.prepare.outputs.publish == 'true' }}
+  macos-arm64:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/target.yml
+    with:
+      target: aarch64-apple-darwin
+      runner: macos-15
+      publish: ${{ needs.prepare.outputs.publish == 'true' }}
+  macos-x64:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/target.yml
+    with:
+      target: x86_64-apple-darwin
+      runner: macos-15-intel
+      publish: ${{ needs.prepare.outputs.publish == 'true' }}
+  windows-x64:
+    needs: prepare
+    permissions:
+      contents: write
+    uses: ./.github/workflows/target.yml
+    with:
+      target: x86_64-pc-windows-msvc
+      runner: windows-2025
+      publish: ${{ needs.prepare.outputs.publish == 'true' }}
+
+  verify-release:
+    name: Verify complete release matrix
+    needs: [linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: buzz-cli-*
+          path: dist/inputs
+          merge-multiple: false
+      - name: Validate all receipts, tests, archives and checksums
+        env:
+          RECIPE_COMMIT: ${{ github.sha }}
+        run: python3 scripts/release.py --input dist/inputs --output dist/release --recipe-commit "$RECIPE_COMMIT"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-bundle
+          path: dist/release/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  finalize:
+    name: Finalize release
+    needs: [prepare, verify-release]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-bundle
+          path: dist/release
+      - name: Upload matrix files, verify every asset digest and mark the release final
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECIPE_COMMIT: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 scripts/publish.py finalize --repo "$GITHUB_REPOSITORY" --recipe-commit "$RECIPE_COMMIT" --input dist/release --run-url "$RUN_URL"

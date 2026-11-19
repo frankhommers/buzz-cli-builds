@@ -75,9 +75,15 @@ To follow a new Desktop release, set `tag` to its `desktop-vX.Y.Z`, `version` to
 
 Older releases (`0.5.x`) used tags in `block/buzz` (`"tag_repository": "block/buzz"`) or `-dev.` snapshot labels for untagged commits. Those labels remain valid for reproducing old releases but are not used for new ones. None of these is the upstream Cargo package's version string.
 
-The workflow runs on pushes to `main`, pull requests and **Run workflow** in GitHub Actions.
-**There is currently no periodic upstream watcher and no automatic release publication.** Those are deliberately deferred until the basic cross-platform build is established.
-A maintainer updates the pin and publishes only a verified complete `release-bundle` artifact. Existing published assets must not be overwritten.
+Pull requests and **Run workflow** use `build.yml`: every target is built, tested and validated, nothing is published.
+A push to `main` uses `release.yml`, which publishes the pinned version **per target**:
+
+1. The release `v<version>` is created as a public pre-release at the recipe commit (or resumed if it already exists for that commit).
+2. Each target's archive and receipt are validated on their own and uploaded as soon as that target passes, so a slow runner does not hold back the others.
+3. After all five pass, the complete matrix is validated again, `manifest.json` and `SHA256SUMS` are uploaded last, every asset's GitHub SHA-256 digest is checked, and the release becomes final (and **Latest** for Desktop versions).
+
+Until step 3, the release is visibly a pre-release without `SHA256SUMS`; use each receipt's `archive_sha256` meanwhile. Existing assets are never overwritten: a rerun only accepts assets with identical digests. A version whose release is already final is built but not published again.
+There is no periodic upstream watcher: a maintainer bumps the pin to a new Desktop release.
 
 ## Build it yourself
 
@@ -102,7 +108,7 @@ python3 scripts/release.py --input dist/inputs --output dist/release --recipe-co
 ```
 
 The aggregator rejects missing/duplicate targets, mismatching source or recipe commits, failed/skipped tests, malformed receipts, bad checksums, unsafe archive members and unexpected files.
-All GitHub build jobs have read-only repository permissions, and checkout credentials are not persisted. Pull requests cannot publish releases.
+All build jobs have read-only repository permissions, and checkout credentials are not persisted. Only the small publish jobs of `release.yml` on `main` get `contents: write`; they run no upstream code. Pull requests cannot publish releases.
 
 ## License
 
