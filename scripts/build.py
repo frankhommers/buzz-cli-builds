@@ -43,11 +43,26 @@ def require(condition, message):
 VERSION_PATTERN = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-dev\.[0-9]{8}\.[0-9a-f]{12})?-[1-9][0-9]*"
 
 
+# Buzz Desktop 1.0+ (block/buzz-app) pins the bundled CLI through this dependency;
+# scripts/build-buzz-cli.mjs in that repository applies the same rule.
+DESKTOP_CLI_PIN = re.compile(
+    r'buzz-audio-client\s*=\s*\{[^}]*\bgit\s*=\s*"https://github\.com/block/buzz\.git"[^}]*'
+    r'\brev\s*=\s*"([0-9a-f]{40})"')
+TAG_REPOSITORIES = {"block/buzz", "block/buzz-app"}
+
+
+def desktop_cli_commit(manifest):
+    match = DESKTOP_CLI_PIN.search(manifest)
+    require(match is not None, "Desktop Cargo.toml has no block/buzz revision for the bundled CLI")
+    return match.group(1)
+
+
 def validate_pin(pin):
-    keys = {"repository", "tag", "commit", "rust", "rust_image", "version"}
+    keys = {"repository", "tag_repository", "tag", "commit", "rust", "rust_image", "version"}
     require(type(pin) is dict and set(pin) == keys, "Pin must have exactly: " + ", ".join(sorted(keys)))
     require(all(type(v) is str for v in pin.values()), "All pin values must be strings")
     require(pin["repository"] == "block/buzz", "Only the public block/buzz source is allowed")
+    require(pin["tag_repository"] in TAG_REPOSITORIES, "Tag repository must be block/buzz or block/buzz-app")
     require(re.fullmatch(r"[0-9a-f]{40}", pin["commit"]), "Commit must be a lowercase full SHA-1")
     semver = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
     require(re.fullmatch(semver, pin["rust"]), "Rust must be an exact stable version")
@@ -56,6 +71,7 @@ def validate_pin(pin):
         date, short = pin["version"].split("-dev.", 1)[1].rsplit("-", 1)[0].split(".")
         require(short == pin["commit"][:12] and pin["tag"] == f"snapshot-{date}-{short}",
                 "Snapshot label/version/commit mismatch")
+        require(pin["tag_repository"] == "block/buzz", "Snapshots are labels for block/buzz commits")
     else:
         require(pin["tag"] == "desktop-v" + pin["version"].rsplit("-", 1)[0], "Tag/version mismatch")
     require(re.fullmatch(r"rust:" + re.escape(pin["rust"]) + r"-alpine@sha256:[0-9a-f]{64}",
@@ -376,11 +392,22 @@ def fetch_source(source, pin, env, log):
     run(git + ["checkout", "--detach", "FETCH_HEAD"], cwd=source, env=env, log=log)
     head = run(git + ["rev-parse", "HEAD"], cwd=source, env=env, log=log).stdout.strip()
     require(head == pin["commit"], "Fetched source commit differs from pin")
-    if not pin["tag"].startswith("snapshot-"):
+    if pin["tag"].startswith("snapshot-"):
+        pass
+    elif pin["tag_repository"] == "block/buzz":
         run(git + ["fetch", "--depth=1", "--no-tags", "origin", f'refs/tags/{pin["tag"]}:refs/tags/{pin["tag"]}'],
             cwd=source, env=env, log=log)
         tag = run(git + ["rev-parse", f'refs/tags/{pin["tag"]}^{{commit}}'], cwd=source, env=env, log=log).stdout.strip()
         require(tag == pin["commit"], "Source tag does not peel to the pinned commit")
+    else:
+        # Desktop release tag: the app's Cargo.toml must pin exactly this CLI commit.
+        run(git + ["remote", "add", "desktop", f'https://github.com/{pin["tag_repository"]}.git'],
+            cwd=source, env=env, log=log)
+        ref = f'refs/desktop-tags/{pin["tag"]}'
+        run(git + ["fetch", "--depth=1", "--no-tags", "desktop", f'refs/tags/{pin["tag"]}:{ref}'],
+            cwd=source, env=env, log=log)
+        manifest = run(git + ["show", f"{ref}:src-tauri/Cargo.toml"], cwd=source, env=env, log=log).stdout
+        require(desktop_cli_commit(manifest) == pin["commit"], "Desktop tag does not bundle the pinned CLI commit")
     toolchain = tomllib.loads((source / "rust-toolchain.toml").read_text(encoding="utf-8"))
     require(toolchain.get("toolchain", {}).get("channel") == pin["rust"], "Upstream Rust toolchain pin mismatch")
     require((source / "LICENSE").is_file() and (source / "Cargo.lock").is_file(), "Missing upstream license/lockfile")

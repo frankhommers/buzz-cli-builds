@@ -14,7 +14,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import build
 
 PIN = {
-    "repository": "block/buzz", "tag": "desktop-v0.5.23",
+    "repository": "block/buzz", "tag_repository": "block/buzz", "tag": "desktop-v0.5.23",
     "commit": "b9392d9d78744df365f9276e1ffe8c1baa5ea903",
     "rust": "1.95.0", "version": "0.5.23-1",
     "rust_image": "rust:1.95.0-alpine@sha256:" + "a" * 64,
@@ -35,6 +35,28 @@ class PinTests(unittest.TestCase):
                        {"version": "0.5.23-1"}):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 build.validate_pin(dict(pin, **change))
+
+    def test_desktop_app_pin(self):
+        pin = dict(PIN, tag_repository="block/buzz-app", tag="desktop-v1.0.5", version="1.0.5-1")
+        self.assertEqual(build.validate_pin(pin), pin)
+        for change in ({"tag": "desktop-v1.0.6"}, {"tag": "v1.0.5"}, {"tag_repository": "block/other"},
+                       {"tag_repository": "https://github.com/block/buzz-app"},
+                       {"tag": "snapshot-20261112-" + PIN["commit"][:12],
+                        "version": "1.0.5-dev.20261112." + PIN["commit"][:12] + "-1"}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                build.validate_pin(dict(pin, **change))
+
+    def test_desktop_cli_commit_matches_app_rule(self):
+        rev = "630922a9e1f891380a61f5b7d726d05ca948cc64"
+        manifest = ('[dependencies]\nserde = "1"\nbuzz-audio-client = { git = '
+                    '"https://github.com/block/buzz.git", rev = "' + rev + '" }\n')
+        self.assertEqual(build.desktop_cli_commit(manifest), rev)
+        for bad in ('buzz-audio-client = { git = "https://github.com/evil/buzz.git", rev = "' + rev + '" }',
+                    'buzz-audio-client = { git = "https://github.com/block/buzz.git", branch = "main" }',
+                    'other = { git = "https://github.com/block/buzz.git", rev = "' + rev + '" }',
+                    'buzz-audio-client = { git = "https://github.com/block/buzz.git", rev = "' + rev[:12] + '" }'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                build.desktop_cli_commit(bad)
 
     def test_missing_unknown_and_wrong_types(self):
         for key in PIN:
