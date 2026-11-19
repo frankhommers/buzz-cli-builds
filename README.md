@@ -67,8 +67,13 @@ Checksums detect corruption; they do not provide an independent publisher signat
 
 ## Source and version policy
 
-[`upstream.json`](upstream.json) is the single source pin. The current build uses upstream commit `b68c4edda5d7d116171224704bb48ca13deb9fbc` from 19 November 2026 (UTC), newer than the `buzz` CLI bundled with Buzz Desktop 1.0.5 and 1.0.6 (`630922a9e1f8`). It includes the breaking `channels list/get/search` output change from upstream #9617.
-Snapshot `0.5.28-dev.20261119.b68c4edda5d7-1` identifies the date, source commit and packaging revision; it is not an upstream Desktop release. Snapshot labels are local provenance labels, not upstream Git tags. The full immutable commit is fetched and verified. Stable pins retain tag-to-commit verification and use versions such as `0.5.28-1`. Neither is the upstream Cargo package's version string.
+[`upstream.json`](upstream.json) is the single source pin. **Versions follow Buzz Desktop:** `buzz-cli 1.0.5-1` is exactly the `buzz` CLI bundled with Buzz Desktop 1.0.5, packaging revision 1. The CLI has no version of its own upstream; Buzz Desktop (`block/buzz-app`) pins it to a `block/buzz` commit in `src-tauri/Cargo.toml`.
+
+The current build is Buzz Desktop **1.0.5** (`block/buzz-app` tag `desktop-v1.0.5`), which bundles upstream commit `630922a9e1f891380a61f5b7d726d05ca948cc64`.
+For such a pin (`"tag_repository": "block/buzz-app"`) the build fetches the immutable source commit, fetches the Desktop tag and requires that its `src-tauri/Cargo.toml` pins exactly that commit, using the same rule as Desktop's own `scripts/build-buzz-cli.mjs`.
+To follow a new Desktop release, set `tag` to its `desktop-vX.Y.Z`, `version` to `X.Y.Z-1` and `commit` to the revision that release bundles; the build rejects any mismatch.
+
+Older releases (`0.5.x`) used tags in `block/buzz` (`"tag_repository": "block/buzz"`) or `-dev.` snapshot labels for untagged commits. Those labels remain valid for reproducing old releases but are not used for new ones. None of these is the upstream Cargo package's version string.
 
 The workflow runs on pushes to `main`, pull requests and **Run workflow** in GitHub Actions.
 **There is currently no periodic upstream watcher and no automatic release publication.** Those are deliberately deferred until the basic cross-platform build is established.

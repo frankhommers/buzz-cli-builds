@@ -1,8 +1,9 @@
 {
   "repository": "block/buzz",
-  "tag": "snapshot-20261119-b68c4edda5d7",
-  "commit": "b68c4edda5d7d116171224704bb48ca13deb9fbc",
+  "tag_repository": "block/buzz-app",
+  "tag": "desktop-v1.0.5",
+  "commit": "630922a9e1f891380a61f5b7d726d05ca948cc64",
   "rust": "1.98.1",
   "rust_image": "rust:1.98.1-alpine@sha256:7cc1c22d77d9432f7fe012a70e6d3e555af54c2a6832700ed7d553f1769ae89f",
-  "version": "0.5.28-dev.20261119.b68c4edda5d7-1"
+  "version": "1.0.5-1"
 }
