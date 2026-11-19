@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a complete native build matrix and assemble a release. Never publishes."""
+"""Validate native builds and assemble a release. Never publishes; see publish.py."""
 import build
 import argparse
 import hashlib
@@ -113,48 +113,68 @@ def validate_inputs(directory, pin, recipe_commit):
     require(COMMIT.fullmatch(recipe_commit or ""), "Invalid recipe commit")
     require(pin.get("repository") == "block/buzz", "Unexpected upstream repository")
     require(COMMIT.fullmatch(pin.get("commit", "")), "Invalid source commit")
+    files = collect_files(directory)
+    expected = set()
+    for target in TARGETS:
+        expected.update((archive_name(pin["version"], target), f"build-{target}.json"))
+    require(set(files) == expected, f"Incomplete or unexpected build matrix: missing={sorted(expected-set(files))}; extra={sorted(set(files)-expected)}")
+    return {target: validate_target(files, target, pin, recipe_commit) for target in TARGETS}
+
+
+def validate_target(files, target, pin, recipe_commit):
+    """Validate one target's receipt and archive from a name -> path mapping."""
+    row = load_json(files[f"build-{target}.json"].read_bytes())
+    require(isinstance(row, dict), "Receipt is not an object")
+    require(type(row.get("schema_version")) is int and row["schema_version"] == 1, "Invalid receipt schema")
+    for key, value in {
+        "target": target, "version": pin["version"], "source_repository": pin["repository"],
+        "source_tag": pin["tag"], "source_commit": pin["commit"], "recipe_commit": recipe_commit,
+        "archive": archive_name(pin["version"], target), "authenticated_relay_test": "not_performed",
+    }.items():
+        require(row.get(key) == value, f"Mismatching {target} receipt: {key}")
+    require(row.get("architecture_verified") is True, "Architecture not verified")
+    if "linux" in target:
+        require(row.get("static_linked") is True, "Linux binary is not static")
+    counts = row.get("unit_tests", {})
+    require(isinstance(counts, dict), "Missing test counts")
+    for key in ("passed", "failed", "ignored", "filtered"):
+        require(type(counts.get(key)) is int, f"Invalid test count: {key}")
+    require(counts["passed"] > 0 and all(counts[key] == 0 for key in ("failed", "ignored", "filtered")), "Unit tests incomplete or failing")
+    smokes = row.get("smoke_tests")
+    require(isinstance(smokes, list) and len(smokes) == len(SMOKE_CASES), "Missing smoke cases")
+    for item, (args, code) in zip(smokes, SMOKE_CASES):
+        require(isinstance(item, dict) and item.get("args") == args and
+                type(item.get("expected_exit")) is int and item["expected_exit"] == code and
+                type(item.get("actual_exit")) is int and item["actual_exit"] == code and
+                item.get("passed") is True, "Smoke case failed or mismatched")
+    for key in ("archive_sha256", "binary_sha256"):
+        require(isinstance(row.get(key), str) and SHA.fullmatch(row[key]), "Invalid checksum")
+    require(sha256(files[row["archive"]]) == row["archive_sha256"], "Archive checksum mismatch")
+    check_archive(files[row["archive"]], row)
+    return row
+
+
+def collect_files(directory):
     files = {}
     for path in directory.rglob("*"):
         require(not path.is_symlink(), "Symlink in build inputs")
         if path.is_file():
             require(path.name not in files, "Duplicate artifact filename")
             files[path.name] = path
-    expected = set()
-    for target in TARGETS:
-        expected.update((archive_name(pin["version"], target), f"build-{target}.json"))
-    require(set(files) == expected, f"Incomplete or unexpected build matrix: missing={sorted(expected-set(files))}; extra={sorted(set(files)-expected)}")
-    rows = {}
-    for target in TARGETS:
-        row = load_json(files[f"build-{target}.json"].read_bytes())
-        require(isinstance(row, dict), "Receipt is not an object")
-        require(type(row.get("schema_version")) is int and row["schema_version"] == 1, "Invalid receipt schema")
-        for key, value in {
-            "target": target, "version": pin["version"], "source_repository": pin["repository"],
-            "source_tag": pin["tag"], "source_commit": pin["commit"], "recipe_commit": recipe_commit,
-            "archive": archive_name(pin["version"], target), "authenticated_relay_test": "not_performed",
-        }.items():
-            require(row.get(key) == value, f"Mismatching {target} receipt: {key}")
-        require(row.get("architecture_verified") is True, "Architecture not verified")
-        if "linux" in target:
-            require(row.get("static_linked") is True, "Linux binary is not static")
-        counts = row.get("unit_tests", {})
-        require(isinstance(counts, dict), "Missing test counts")
-        for key in ("passed", "failed", "ignored", "filtered"):
-            require(type(counts.get(key)) is int, f"Invalid test count: {key}")
-        require(counts["passed"] > 0 and all(counts[key] == 0 for key in ("failed", "ignored", "filtered")), "Unit tests incomplete or failing")
-        smokes = row.get("smoke_tests")
-        require(isinstance(smokes, list) and len(smokes) == len(SMOKE_CASES), "Missing smoke cases")
-        for item, (args, code) in zip(smokes, SMOKE_CASES):
-            require(isinstance(item, dict) and item.get("args") == args and
-                    type(item.get("expected_exit")) is int and item["expected_exit"] == code and
-                    type(item.get("actual_exit")) is int and item["actual_exit"] == code and
-                    item.get("passed") is True, "Smoke case failed or mismatched")
-        for key in ("archive_sha256", "binary_sha256"):
-            require(isinstance(row.get(key), str) and SHA.fullmatch(row[key]), "Invalid checksum")
-        require(sha256(files[row["archive"]]) == row["archive_sha256"], "Archive checksum mismatch")
-        check_archive(files[row["archive"]], row)
-        rows[target] = row
-    return rows
+    return files
+
+
+def validate_single(directory, target, pin, recipe_commit):
+    """Validate exactly one target's archive and receipt, for publishing it on its own."""
+    require(COMMIT.fullmatch(recipe_commit or ""), "Invalid recipe commit")
+    require(pin.get("repository") == "block/buzz", "Unexpected upstream repository")
+    require(COMMIT.fullmatch(pin.get("commit", "")), "Invalid source commit")
+    require(target in TARGETS, "Unknown target")
+    files = collect_files(directory)
+    expected = {archive_name(pin["version"], target), f"build-{target}.json"}
+    require(set(files) == expected, f"Unexpected files for {target}: {sorted(files)}")
+    validate_target(files, target, pin, recipe_commit)
+    return [files[name] for name in sorted(expected)]
 
 
 def assemble(source, destination, pin, recipe_commit):

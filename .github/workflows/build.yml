@@ -1,12 +1,10 @@
 name: Build Buzz CLI
 
+# Pull requests and manual runs: build and validate every target. Never publishes.
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# No build job can publish releases or modify the repository.
 permissions:
   contents: read
 
@@ -25,61 +23,45 @@ jobs:
       - name: Test release and build safeguards
         run: python3 -m unittest discover -s tests -v
 
-  build:
+  linux-x64:
     needs: recipe-tests
-    name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            runner: ubuntu-24.04
-          - target: aarch64-unknown-linux-musl
-            runner: ubuntu-24.04-arm
-          - target: aarch64-apple-darwin
-            runner: macos-15
-          - target: x86_64-apple-darwin
-            runner: macos-15-intel
-          - target: x86_64-pc-windows-msvc
-            runner: windows-2025
-    defaults:
-      run:
-        shell: bash
-    env:
-      CARGO_BUILD_JOBS: '3'
-      CARGO_TERM_COLOR: never
-      PYTHONUNBUFFERED: '1'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Build, test and package pinned upstream CLI
-        run: python3 scripts/build.py --target "${{ matrix.target }}" --output "dist/${{ matrix.target }}"
-      - name: Collect failed build logs without traversing profiles
-        if: failure()
-        run: python3 scripts/collect_logs.py
-      - name: Preserve failed build diagnostics
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: build-logs-${{ matrix.target }}
-          path: diagnostics/
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Upload verified target
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: buzz-cli-${{ matrix.target }}
-          path: dist/${{ matrix.target }}/
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
+    uses: ./.github/workflows/target.yml
+    with:
+      target: x86_64-unknown-linux-musl
+      runner: ubuntu-24.04
+      publish: false
+  linux-arm64:
+    needs: recipe-tests
+    uses: ./.github/workflows/target.yml
+    with:
+      target: aarch64-unknown-linux-musl
+      runner: ubuntu-24.04-arm
+      publish: false
+  macos-arm64:
+    needs: recipe-tests
+    uses: ./.github/workflows/target.yml
+    with:
+      target: aarch64-apple-darwin
+      runner: macos-15
+      publish: false
+  macos-x64:
+    needs: recipe-tests
+    uses: ./.github/workflows/target.yml
+    with:
+      target: x86_64-apple-darwin
+      runner: macos-15-intel
+      publish: false
+  windows-x64:
+    needs: recipe-tests
+    uses: ./.github/workflows/target.yml
+    with:
+      target: x86_64-pc-windows-msvc
+      runner: windows-2025
+      publish: false
 
   verify-release:
     name: Verify complete release matrix
-    needs: build
+    needs: [linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
